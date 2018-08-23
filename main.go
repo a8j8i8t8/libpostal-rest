@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	expand "github.com/openvenues/gopostal/expand"
 	parser "github.com/openvenues/gopostal/parser"
+	
 )
 
 type Request struct {
@@ -37,6 +39,7 @@ func main() {
 	router.HandleFunc("/health", HealthHandler).Methods("GET")
 	router.HandleFunc("/expand", ExpandHandler).Methods("POST")
 	router.HandleFunc("/parser", ParserHandler).Methods("POST")
+	router.Handle("/metrics", promhttp.Handler())
 
 	s := &http.Server{Addr: listenSpec, Handler: router}
 	go func() {
