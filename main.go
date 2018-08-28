@@ -20,41 +20,27 @@ import (
 
 var (
 
-	parse_duration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "libpostal_parse_request_duration_seconds",
-		Help:    "Histogram of the /parser request duration.",
-		Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
-	})
-
-	parse_counter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "libpostal_parse_requests_total",
-			Help: "Total number of /parser requests.",
+		duration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "Histogram of the request duration.",
+			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
 		},
-		[]string{"status"},
+		[]string{"path", "method", "status"},
 	)
 
-	expand_duration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "libpostal_expand_request_duration_seconds",
-		Help:    "Histogram of the /expand request duration.",
-		Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
-	})
-
-	expand_counter = prometheus.NewCounterVec(
+	counter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "libpostal_expand_requests_total",
-			Help: "Total number of /expand requests.",
+			Name: "http_requests_total",
+			Help: "Total number of requests.",
 		},
-		[]string{"status"},
+		[]string{"path", "method", "status"},
 	)
 )
 
 // init registers Prometheus metrics.
 func init() {
-	prometheus.MustRegister(parse_duration)
-	prometheus.MustRegister(parse_counter)
-	prometheus.MustRegister(expand_duration)
-	prometheus.MustRegister(expand_counter)
+	prometheus.MustRegister(duration)
+	prometheus.MustRegister(counter)
 }
 
 type Request struct {
@@ -79,7 +65,6 @@ func main() {
 	router.HandleFunc("/health", HealthHandler).Methods("GET")
 	router.HandleFunc("/expand", ExpandHandler).Methods("POST")
 	router.HandleFunc("/parser", ParserHandler).Methods("POST")
-	// router.Path("/metrics").Handler(promhttp.Handler())
 	router.Handle("/metrics", promhttp.Handler())
 
 	s := &http.Server{Addr: listenSpec, Handler: router}
@@ -113,13 +98,13 @@ func ExpandHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req Request
 	var status int
+	status = http.StatusOK
+	w.WriteHeader(status)
 
 	defer func(begun time.Time) {
-		expand_duration.Observe(time.Since(begun).Seconds())
+		duration.WithLabelValues(r.URL.Path, r.Method, fmt.Sprintf("%d", status)).Observe(time.Since(begun).Seconds())
 
-		expand_counter.With(prometheus.Labels{
-			"status": fmt.Sprint(status),
-		}).Inc()
+		counter.WithLabelValues(r.URL.Path, r.Method, fmt.Sprintf("%d", status)).Inc()
 	}(time.Now())
 
 	q, _ := ioutil.ReadAll(r.Body)
@@ -136,13 +121,13 @@ func ParserHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req Request
 	var status int
+	status = http.StatusOK
+	w.WriteHeader(status)
 
 	defer func(begun time.Time) {
-		parse_duration.Observe(time.Since(begun).Seconds())
+		duration.WithLabelValues(r.URL.Path, r.Method, fmt.Sprintf("%d", status)).Observe(time.Since(begun).Seconds())
 
-		parse_counter.With(prometheus.Labels{
-			"status": fmt.Sprint(status),
-		}).Inc()
+		counter.WithLabelValues(r.URL.Path, r.Method, fmt.Sprintf("%d", status)).Inc()
 	}(time.Now())
 
 	q, _ := ioutil.ReadAll(r.Body)
